@@ -1,32 +1,86 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, User, Calendar, Clock, Stethoscope, FileText, ArrowRight, History } from 'lucide-react';
+import { X, User, Calendar, Clock, Stethoscope, FileText, ArrowRight, History, Check } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { Appointment } from '../types';
+import { updateAppointment } from '../lib/appointmentsStorage';
 
 interface AppointmentDetailsModalProps {
   isOpen: boolean;
   onClose: () => void;
   appointment: {
     id: string;
+    patientId: string;
     patient: string;
     time: string;
     doctor: string;
     specialty: string;
-    status: string;
+    status: Appointment['status'];
     date?: string;
+    reason?: string;
+    notes?: string;
   } | null;
 }
 
 export const AppointmentDetailsModal: React.FC<AppointmentDetailsModalProps> = ({ isOpen, onClose, appointment }) => {
   const navigate = useNavigate();
+  const [isEditing, setIsEditing] = useState(false);
+  const [draftStatus, setDraftStatus] = useState<Appointment['status']>('pending');
+  const [draftNotes, setDraftNotes] = useState('');
+  const [isSaved, setIsSaved] = useState(false);
 
-  if (!appointment) return null;
+  useEffect(() => {
+    if (!appointment) {
+      return;
+    }
+
+    setDraftStatus(appointment.status);
+    setDraftNotes(appointment.notes || '');
+    setIsEditing(false);
+    setIsSaved(false);
+  }, [appointment, isOpen]);
+
+  const formatStatus = (status: Appointment['status']) => {
+    switch (status) {
+      case 'confirmed':
+        return 'Confirmado';
+      case 'completed':
+        return 'Completado';
+      case 'cancelled':
+        return 'Cancelado';
+      default:
+        return 'Pendiente';
+    }
+  };
 
   const handleGoToPatient = () => {
-    // In a real app, we would use the patient ID
-    navigate('/pacientes');
+    if (!appointment) {
+      return;
+    }
+
+    navigate(`/pacientes?patient=${appointment.patientId}`);
     onClose();
   };
+
+  const handleSave = () => {
+    if (!appointment) {
+      return;
+    }
+
+    updateAppointment(appointment.id, {
+      status: draftStatus,
+      notes: draftNotes.trim(),
+    });
+
+    setIsSaved(true);
+    setIsEditing(false);
+
+    window.setTimeout(() => {
+      setIsSaved(false);
+    }, 2000);
+  };
+
+  if (!appointment) return null;
 
   return (
     <AnimatePresence>
@@ -124,17 +178,61 @@ export const AppointmentDetailsModal: React.FC<AppointmentDetailsModalProps> = (
                 </div>
               </div>
 
+              <div className="space-y-3">
+                <div>
+                  <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Motivo</p>
+                  <p className="font-medium text-gray-900">{appointment.reason || 'Sin motivo cargado'}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Notas</p>
+                  {isEditing ? (
+                    <textarea
+                      value={draftNotes}
+                      onChange={(e) => setDraftNotes(e.target.value)}
+                      className="w-full min-h-[96px] rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10"
+                      placeholder="Agrega observaciones clínicas o administrativas..."
+                    />
+                  ) : (
+                    <p className="text-sm text-gray-600">{draftNotes || 'Todavía no hay notas registradas.'}</p>
+                  )}
+                </div>
+              </div>
+
               {/* Status Badge */}
               <div className="pt-4 border-t border-gray-100 flex items-center justify-between">
                 <span className="text-sm text-gray-500">Estado del turno:</span>
-                <span className={`px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider ${
-                  appointment.status === 'Confirmado' 
+                {isEditing ? (
+                  <select
+                    value={draftStatus}
+                    onChange={(e) => setDraftStatus(e.target.value as Appointment['status'])}
+                    className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/10"
+                  >
+                    <option value="pending">Pendiente</option>
+                    <option value="confirmed">Confirmado</option>
+                    <option value="completed">Completado</option>
+                    <option value="cancelled">Cancelado</option>
+                  </select>
+                ) : (
+                  <span className={`px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider ${
+                  draftStatus === 'confirmed' 
                     ? 'bg-emerald-100 text-emerald-700' 
-                    : 'bg-amber-100 text-amber-700'
+                    : draftStatus === 'completed'
+                      ? 'bg-blue-100 text-blue-700'
+                      : draftStatus === 'cancelled'
+                        ? 'bg-red-100 text-red-700'
+                        : 'bg-amber-100 text-amber-700'
                 }`}>
-                  {appointment.status}
-                </span>
+                    {formatStatus(draftStatus)}
+                  </span>
+                )}
               </div>
+
+              {isSaved && (
+                <div className="flex items-center gap-2 rounded-2xl bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
+                  <Check size={16} />
+                  La minuta se actualizó correctamente.
+                </div>
+              )}
             </div>
 
             {/* Footer Actions */}
@@ -146,9 +244,10 @@ export const AppointmentDetailsModal: React.FC<AppointmentDetailsModalProps> = (
                 Cerrar
               </button>
               <button 
+                onClick={isEditing ? handleSave : () => setIsEditing(true)}
                 className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100"
               >
-                Editar Minuta
+                {isEditing ? 'Guardar Cambios' : 'Editar Minuta'}
               </button>
             </div>
           </motion.div>

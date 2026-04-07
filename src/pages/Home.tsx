@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { 
   Users, 
   Calendar, 
@@ -11,7 +11,7 @@ import {
   PieChart as PieChartIcon,
   Activity
 } from 'lucide-react';
-import { APPOINTMENTS, PATIENTS, DOCTORS, SPECIALTIES } from '../constants';
+import { PATIENTS, DOCTORS, SPECIALTIES } from '../constants';
 import { 
   BarChart, 
   Bar, 
@@ -26,16 +26,24 @@ import {
   Legend
 } from 'recharts';
 import { AppointmentDetailsModal } from '../components/AppointmentDetailsModal';
+import { useAppointments } from '../hooks/useAppointments';
+import { useNavigate } from 'react-router-dom';
 
 export const Home: React.FC = () => {
+  const appointments = useAppointments();
+  const navigate = useNavigate();
   const [selectedAppointment, setSelectedAppointment] = useState<any>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const upcomingAppointments = useMemo(
+    () => appointments.filter((appointment) => appointment.status !== 'cancelled').slice(0, 6),
+    [appointments]
+  );
 
   const stats = [
     { label: 'Pacientes Totales', value: PATIENTS.length, icon: Users, color: 'text-blue-600', bg: 'bg-blue-50' },
-    { label: 'Turnos Hoy', value: '12', icon: Calendar, color: 'text-indigo-600', bg: 'bg-indigo-50' },
+    { label: 'Turnos Activos', value: appointments.filter((appointment) => appointment.status !== 'cancelled').length, icon: Calendar, color: 'text-indigo-600', bg: 'bg-indigo-50' },
     { label: 'Doctores Activos', value: DOCTORS.length, icon: TrendingUp, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-    { label: 'Pendientes', value: '4', icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50' },
+    { label: 'Pendientes', value: appointments.filter((appointment) => appointment.status === 'pending').length, icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50' },
   ];
 
   const handleAppointmentClick = (apt: any) => {
@@ -45,12 +53,15 @@ export const Home: React.FC = () => {
 
     setSelectedAppointment({
       id: apt.id,
+      patientId: apt.patientId,
       patient: patient?.name || 'Desconocido',
       time: apt.time,
       date: apt.date,
       doctor: doctor?.name || 'Desconocido',
       specialty: specialty?.name || 'General',
-      status: apt.status.charAt(0).toUpperCase() + apt.status.slice(1)
+      status: apt.status,
+      reason: apt.reason,
+      notes: apt.notes,
     });
     setIsDetailsOpen(true);
   };
@@ -67,7 +78,7 @@ export const Home: React.FC = () => {
 
   // Data for Pie Chart: Appointments per Specialty
   const specialtyData = SPECIALTIES.map((s, i) => {
-    const count = APPOINTMENTS.filter(apt => {
+    const count = appointments.filter(apt => {
       const doc = DOCTORS.find(d => d.id === apt.doctorId);
       return doc?.specialtyId === s.id;
     }).length;
@@ -186,7 +197,7 @@ export const Home: React.FC = () => {
         <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
           <div className="p-6 border-b border-gray-50 flex items-center justify-between">
             <h2 className="font-bold text-lg">Próximos Turnos</h2>
-            <button className="text-indigo-600 text-sm font-medium hover:underline">Ver todos</button>
+            <button onClick={() => navigate('/agenda')} className="text-indigo-600 text-sm font-medium hover:underline">Ver todos</button>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left">
@@ -199,7 +210,7 @@ export const Home: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {APPOINTMENTS.slice(0, 6).map((apt) => {
+                {upcomingAppointments.map((apt) => {
                   const patient = PATIENTS.find(p => p.id === apt.patientId);
                   const doctor = DOCTORS.find(d => d.id === apt.doctorId);
                   return (
@@ -234,7 +245,10 @@ export const Home: React.FC = () => {
                            apt.status === 'completed' ? <CheckCircle2 size={12} /> :
                            apt.status === 'cancelled' ? <AlertCircle size={12} /> :
                            <Clock size={12} />}
-                          {apt.status.charAt(0).toUpperCase() + apt.status.slice(1)}
+                          {apt.status === 'confirmed' ? 'Confirmado' :
+                           apt.status === 'completed' ? 'Completado' :
+                           apt.status === 'cancelled' ? 'Cancelado' :
+                           'Pendiente'}
                         </span>
                       </td>
                     </tr>
@@ -278,7 +292,7 @@ export const Home: React.FC = () => {
             <div className="w-full bg-indigo-500/50 h-2 rounded-full overflow-hidden">
               <div className="bg-white h-full w-[85%]"></div>
             </div>
-            <button className="mt-6 w-full py-2 bg-white text-indigo-600 rounded-xl font-bold text-sm hover:bg-indigo-50 transition-colors">
+            <button onClick={() => navigate('/agenda?view=week')} className="mt-6 w-full py-2 bg-white text-indigo-600 rounded-xl font-bold text-sm hover:bg-indigo-50 transition-colors">
               Optimizar Agenda
             </button>
           </div>

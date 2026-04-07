@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
-import { Send, User, Bot, ArrowLeft, Sparkles, History, Plus, MessageSquare, Trash2, MoreVertical, Phone, Video, Smile, Paperclip, Mic, Check, CheckCheck, Bell, Search } from 'lucide-react';
+import { Send, Bot, ArrowLeft, History, MessageSquare, Trash2, MoreVertical, Phone, Video, Smile, Paperclip, Mic, CheckCheck, Bell, Search, X } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { chatWithAI } from '../services/geminiService';
 
@@ -25,7 +25,12 @@ export const ChatBot: React.FC = () => {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [sessionSearch, setSessionSearch] = useState('');
+  const [notice, setNotice] = useState('');
+  const [showSidebarMenu, setShowSidebarMenu] = useState(false);
+  const [showHeaderMenu, setShowHeaderMenu] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
 
   // Load sessions from localStorage
@@ -100,6 +105,13 @@ export const ChatBot: React.FC = () => {
     scrollToBottom();
   }, [messages]);
 
+  const showNotice = (message: string) => {
+    setNotice(message);
+    window.setTimeout(() => {
+      setNotice('');
+    }, 2200);
+  };
+
   const startNewChat = () => {
     const newId = Date.now().toString();
     setCurrentSessionId(newId);
@@ -110,6 +122,7 @@ export const ChatBot: React.FC = () => {
     };
     setMessages([initialMessage]);
     setIsSidebarOpen(false);
+    setShowSidebarMenu(false);
   };
 
   const loadSession = (session: ChatSession) => {
@@ -128,6 +141,16 @@ export const ChatBot: React.FC = () => {
       setCurrentSessionId(null);
     }
   };
+
+  const filteredSessions = sessions.filter((session) => {
+    const normalizedSearch = sessionSearch.trim().toLowerCase();
+    if (!normalizedSearch) {
+      return true;
+    }
+
+    const lastMessage = session.messages[session.messages.length - 1]?.content.toLowerCase() || '';
+    return session.title.toLowerCase().includes(normalizedSearch) || lastMessage.includes(normalizedSearch);
+  });
 
   const handleSend = async () => {
     if (!input.trim() || isLoading) return;
@@ -207,9 +230,34 @@ export const ChatBot: React.FC = () => {
                 <img src="https://picsum.photos/seed/admin/100/100" alt="Me" referrerPolicy="no-referrer" />
               </div>
               <div className="flex items-center gap-5 text-[#54656f]">
-                <History size={20} className="cursor-pointer hover:text-gray-700" />
-                <MessageSquare size={20} className="cursor-pointer hover:text-gray-700" onClick={startNewChat} />
-                <MoreVertical size={20} className="cursor-pointer hover:text-gray-700" />
+                <button onClick={() => setSessionSearch('')} className="hover:text-gray-700" title="Ver historial">
+                  <History size={20} />
+                </button>
+                <button onClick={startNewChat} className="hover:text-gray-700" title="Nuevo chat">
+                  <MessageSquare size={20} />
+                </button>
+                <div className="relative">
+                  <button onClick={() => setShowSidebarMenu((current) => !current)} className="hover:text-gray-700" title="Más acciones">
+                    <MoreVertical size={20} />
+                  </button>
+                  {showSidebarMenu && (
+                    <div className="absolute right-0 top-8 w-48 rounded-2xl border border-gray-100 bg-white p-2 shadow-lg">
+                      <button onClick={startNewChat} className="w-full rounded-xl px-3 py-2 text-left text-sm text-gray-600 transition-colors hover:bg-gray-50">
+                        Iniciar chat nuevo
+                      </button>
+                      <button
+                        onClick={() => {
+                          setSessionSearch('');
+                          setShowSidebarMenu(false);
+                          showNotice('Búsqueda del historial reiniciada.');
+                        }}
+                        className="w-full rounded-xl px-3 py-2 text-left text-sm text-gray-600 transition-colors hover:bg-gray-50"
+                      >
+                        Limpiar búsqueda
+                      </button>
+                    </div>
+                  )}
+                </div>
                 <button onClick={() => setIsSidebarOpen(false)} className="md:hidden p-1">
                   <ArrowLeft size={20} />
                 </button>
@@ -223,6 +271,8 @@ export const ChatBot: React.FC = () => {
                 <input 
                   type="text" 
                   placeholder="Busca un chat o inicia uno nuevo" 
+                  value={sessionSearch}
+                  onChange={(e) => setSessionSearch(e.target.value)}
                   className="w-full bg-transparent text-sm focus:outline-none placeholder:text-[#667781]"
                 />
               </div>
@@ -230,12 +280,12 @@ export const ChatBot: React.FC = () => {
 
             {/* Chat List */}
             <div className="flex-1 overflow-y-auto custom-scrollbar bg-white">
-              {sessions.length === 0 ? (
+              {filteredSessions.length === 0 ? (
                 <div className="text-center py-10 text-[#667781] text-sm">
-                  No hay chats previos
+                  No hay chats que coincidan
                 </div>
               ) : (
-                sessions.map((session) => (
+                filteredSessions.map((session) => (
                   <div
                     key={session.id}
                     onClick={() => loadSession(session)}
@@ -306,12 +356,30 @@ export const ChatBot: React.FC = () => {
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-5 text-gray-500 mr-2">
-            <Video size={20} className="cursor-pointer" />
-            <Phone size={18} className="cursor-pointer" />
+          <div className="relative flex items-center gap-5 text-gray-500 mr-2">
+            <button onClick={() => showNotice('Videollamadas en preparación para la próxima versión.')}>
+              <Video size={20} />
+            </button>
+            <button onClick={() => showNotice('Llamadas rápidas disponibles desde la ficha del paciente.')}>
+              <Phone size={18} />
+            </button>
             <div className="w-[1px] h-6 bg-gray-300 mx-1"></div>
-            <Search size={20} className="cursor-pointer" />
-            <MoreVertical size={20} className="cursor-pointer" />
+            <button onClick={() => inputRef.current?.focus()}>
+              <Search size={20} />
+            </button>
+            <button onClick={() => setShowHeaderMenu((current) => !current)}>
+              <MoreVertical size={20} />
+            </button>
+            {showHeaderMenu && (
+              <div className="absolute right-0 top-9 w-52 rounded-2xl border border-gray-100 bg-white p-2 shadow-lg">
+                <button onClick={() => { navigate('/'); setShowHeaderMenu(false); }} className="w-full rounded-xl px-3 py-2 text-left text-sm text-gray-600 transition-colors hover:bg-gray-50">
+                  Volver al panel
+                </button>
+                <button onClick={() => { setMessages([]); setShowHeaderMenu(false); showNotice('La conversación visible fue limpiada.'); }} className="w-full rounded-xl px-3 py-2 text-left text-sm text-gray-600 transition-colors hover:bg-gray-50">
+                  Limpiar conversación
+                </button>
+              </div>
+            )}
           </div>
         </header>
 
@@ -418,12 +486,17 @@ export const ChatBot: React.FC = () => {
         {/* WhatsApp Input Area */}
         <div className="bg-[#F0F2F5] p-2 md:px-4 flex items-center gap-2 md:gap-4 sticky bottom-0 z-40">
           <div className="flex items-center gap-3 text-gray-500 px-2">
-            <Smile size={24} className="cursor-pointer hover:text-gray-700" />
-            <Paperclip size={22} className="cursor-pointer hover:text-gray-700" />
+            <button onClick={() => setInput((current) => `${current}${current ? ' ' : ''}🙂`)} className="hover:text-gray-700">
+              <Smile size={24} />
+            </button>
+            <button onClick={() => setInput((current) => `${current}${current ? ' ' : ''}[Adjunto clínico]`)} className="hover:text-gray-700">
+              <Paperclip size={22} />
+            </button>
           </div>
           
           <div className="flex-1 relative">
             <input
+              ref={inputRef}
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
@@ -443,12 +516,27 @@ export const ChatBot: React.FC = () => {
                 <Send size={20} fill="currentColor" />
               </button>
             ) : (
-              <button className="w-11 h-11 text-gray-500 flex items-center justify-center">
+              <button onClick={() => showNotice('El dictado por voz todavía no está habilitado.')} className="w-11 h-11 text-gray-500 flex items-center justify-center">
                 <Mic size={24} />
               </button>
             )}
           </div>
         </div>
+        <AnimatePresence>
+          {notice && (
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 12 }}
+              className="absolute bottom-24 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-full bg-[#111b21] px-4 py-2 text-sm text-white shadow-lg"
+            >
+              <span>{notice}</span>
+              <button onClick={() => setNotice('')} className="text-white/80 hover:text-white">
+                <X size={14} />
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );

@@ -1,8 +1,11 @@
 import React from 'react';
 import { Stethoscope, ArrowRight } from 'lucide-react';
 import { SPECIALTIES, DOCTORS } from '../constants';
+import { useNavigate } from 'react-router-dom';
 
 export const Specialties: React.FC = () => {
+  const navigate = useNavigate();
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       {SPECIALTIES.map((specialty) => {
@@ -23,7 +26,7 @@ export const Specialties: React.FC = () => {
                 <span className="text-2xl font-bold text-gray-900">{doctorCount}</span>
                 <span className="text-xs text-gray-400 font-bold uppercase tracking-wider">Doctores</span>
               </div>
-              <button className="w-10 h-10 rounded-full border border-gray-200 flex items-center justify-center text-gray-400 group-hover:bg-indigo-600 group-hover:text-white group-hover:border-indigo-600 transition-all">
+              <button onClick={() => navigate(`/doctores?specialty=${specialty.id}`)} className="w-10 h-10 rounded-full border border-gray-200 flex items-center justify-center text-gray-400 group-hover:bg-indigo-600 group-hover:text-white group-hover:border-indigo-600 transition-all">
                 <ArrowRight size={20} />
               </button>
             </div>

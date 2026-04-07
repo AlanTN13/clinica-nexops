@@ -1,15 +1,22 @@
 import React, { useState, useMemo } from 'react';
-import { Calendar as CalendarIcon, Clock, Filter, ChevronLeft, ChevronRight, User, Stethoscope } from 'lucide-react';
-import { APPOINTMENTS, PATIENTS, DOCTORS, SPECIALTIES } from '../constants';
-import { Appointment } from '../types';
+import { Calendar as CalendarIcon, Filter, ChevronLeft, ChevronRight, Stethoscope } from 'lucide-react';
+import { PATIENTS, DOCTORS, SPECIALTIES } from '../constants';
 import { AppointmentDetailsModal } from '../components/AppointmentDetailsModal';
+import { useAppointments } from '../hooks/useAppointments';
+import { useSearchParams } from 'react-router-dom';
 
 type ViewType = 'day' | 'week' | 'month';
 
 export const Agenda: React.FC = () => {
-  const [viewType, setViewType] = useState<ViewType>('month');
+  const appointments = useAppointments();
+  const [searchParams] = useSearchParams();
+  const initialView = searchParams.get('view');
+  const initialDoctor = searchParams.get('doctor') ?? '';
+  const [viewType, setViewType] = useState<ViewType>(
+    initialView === 'day' || initialView === 'week' || initialView === 'month' ? initialView : 'month'
+  );
   const [currentDate, setCurrentDate] = useState(new Date(2026, 3, 1)); // April 1st, 2026
-  const [filterDoctorId, setFilterDoctorId] = useState<string>('');
+  const [filterDoctorId, setFilterDoctorId] = useState<string>(initialDoctor);
   const [showFilters, setShowFilters] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState<any>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
@@ -21,12 +28,15 @@ export const Agenda: React.FC = () => {
 
     setSelectedAppointment({
       id: apt.id,
+      patientId: apt.patientId,
       patient: patient?.name || 'Desconocido',
       time: apt.time,
       date: apt.date,
       doctor: doctor?.name || 'Desconocido',
       specialty: specialty?.name || 'General',
-      status: apt.status.charAt(0).toUpperCase() + apt.status.slice(1)
+      status: apt.status,
+      reason: apt.reason,
+      notes: apt.notes,
     });
     setIsDetailsOpen(true);
   };
@@ -34,8 +44,8 @@ export const Agenda: React.FC = () => {
   const days = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 
   const filteredAppointments = useMemo(() => {
-    return APPOINTMENTS.filter(apt => !filterDoctorId || apt.doctorId === filterDoctorId);
-  }, [filterDoctorId]);
+    return appointments.filter(apt => !filterDoctorId || apt.doctorId === filterDoctorId);
+  }, [appointments, filterDoctorId]);
 
   const navigateDate = (direction: 'prev' | 'next') => {
     const newDate = new Date(currentDate);
@@ -297,7 +307,7 @@ export const Agenda: React.FC = () => {
             </button>
           </div>
           <button 
-            onClick={() => setCurrentDate(new Date(2024, 3, 1))}
+            onClick={() => setCurrentDate(new Date())}
             className="flex items-center gap-2 bg-white border border-gray-200 px-4 py-2 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors shadow-sm"
           >
             <CalendarIcon size={18} className="text-gray-400" />

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { NavLink, useLocation, Link } from 'react-router-dom';
+import { NavLink, useLocation, Link, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, 
   Calendar, 
@@ -15,6 +15,7 @@ import {
   Bot
 } from 'lucide-react';
 import { NewAppointmentModal } from './NewAppointmentModal';
+import { DOCTORS, PATIENTS } from '../constants';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -31,9 +32,55 @@ const navItems = [
 export const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [showNotifications, setShowNotifications] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
 
   const activeItem = navItems.find(item => item.path === location.pathname) || navItems[0];
+  const notifications = [
+    { id: '1', text: 'Tienes 3 turnos pendientes de confirmar.', target: '/agenda' },
+    { id: '2', text: 'Se registró un nuevo paciente esta mañana.', target: '/pacientes' },
+    { id: '3', text: 'Cardiología tiene la agenda más cargada hoy.', target: '/doctores?specialty=1' },
+  ];
+
+  const handleGlobalSearch = () => {
+    const normalizedTerm = searchTerm.trim().toLowerCase();
+
+    if (!normalizedTerm) {
+      return;
+    }
+
+    const matchingPatient = PATIENTS.find((patient) => patient.name.toLowerCase().includes(normalizedTerm));
+    if (matchingPatient) {
+      navigate(`/pacientes?patient=${matchingPatient.id}`);
+      setSearchTerm('');
+      return;
+    }
+
+    const matchingDoctor = DOCTORS.find((doctor) => doctor.name.toLowerCase().includes(normalizedTerm));
+    if (matchingDoctor) {
+      navigate(`/doctores?doctor=${matchingDoctor.id}`);
+      setSearchTerm('');
+      return;
+    }
+
+    if (normalizedTerm.includes('agenda') || normalizedTerm.includes('turno')) {
+      navigate('/agenda');
+    } else if (normalizedTerm.includes('especialidad')) {
+      navigate('/especialidades');
+    } else if (normalizedTerm.includes('doctor')) {
+      navigate('/doctores');
+    } else if (normalizedTerm.includes('paciente')) {
+      navigate('/pacientes');
+    } else if (normalizedTerm.includes('ia') || normalizedTerm.includes('bot') || normalizedTerm.includes('chat')) {
+      navigate('/bot');
+    } else {
+      navigate('/');
+    }
+
+    setSearchTerm('');
+  };
 
   return (
     <div className="min-h-screen bg-[#F8F9FA] text-[#1A1A1A] font-sans flex flex-col md:flex-row">
@@ -147,13 +194,44 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
               <input 
                 type="text" 
                 placeholder="Buscar..." 
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleGlobalSearch()}
                 className="pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all w-64"
               />
             </div>
-            <button className="p-2 bg-white border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 transition-colors relative">
-              <Bell size={20} />
-              <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
-            </button>
+            <div className="relative">
+              <button onClick={() => setShowNotifications((current) => !current)} className="p-2 bg-white border border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 transition-colors relative">
+                <Bell size={20} />
+                <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
+              </button>
+              <AnimatePresence>
+                {showNotifications && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 8 }}
+                    className="absolute right-0 top-14 w-80 rounded-2xl border border-gray-100 bg-white p-3 shadow-xl"
+                  >
+                    <p className="px-3 pb-2 text-xs font-bold uppercase tracking-widest text-gray-400">Notificaciones</p>
+                    <div className="space-y-1">
+                      {notifications.map((notification) => (
+                        <button
+                          key={notification.id}
+                          onClick={() => {
+                            navigate(notification.target);
+                            setShowNotifications(false);
+                          }}
+                          className="w-full rounded-xl px-3 py-3 text-left text-sm text-gray-600 transition-colors hover:bg-gray-50"
+                        >
+                          {notification.text}
+                        </button>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
             <button 
               onClick={() => setIsModalOpen(true)}
               className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-xl hover:bg-indigo-700 transition-all shadow-sm shadow-indigo-200"

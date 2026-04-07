@@ -1,23 +1,89 @@
-import React, { useState } from 'react';
-import { Search, Filter, MoreHorizontal, Phone, Mail, Calendar, X, User, MapPin, Droplet, AlertTriangle, ClipboardList, Stethoscope } from 'lucide-react';
-import { PATIENTS, APPOINTMENTS, DOCTORS } from '../constants';
-import { Patient, Appointment } from '../types';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Search, Filter, MoreHorizontal, Phone, Mail, Calendar, X, MapPin, Droplet, AlertTriangle, ClipboardList, Stethoscope } from 'lucide-react';
+import { PATIENTS, DOCTORS } from '../constants';
+import { Patient } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
+import { useAppointments } from '../hooks/useAppointments';
+import { useSearchParams } from 'react-router-dom';
 
 export const Patients: React.FC = () => {
+  const appointments = useAppointments();
+  const [searchParams] = useSearchParams();
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [onlyWithAllergies, setOnlyWithAllergies] = useState(false);
+  const [page, setPage] = useState(1);
+  const pageSize = 5;
 
-  const filteredPatients = PATIENTS.filter(p => 
-    p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    p.dni.includes(searchTerm) ||
-    p.email.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredPatients = useMemo(
+    () =>
+      PATIENTS.filter((patient) => {
+        const matchesSearch =
+          patient.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          patient.dni.includes(searchTerm) ||
+          patient.email.toLowerCase().includes(searchTerm.toLowerCase());
+
+        const matchesFilter = !onlyWithAllergies || Boolean(patient.allergies?.length);
+        return matchesSearch && matchesFilter;
+      }),
+    [onlyWithAllergies, searchTerm]
   );
 
+  const totalPages = Math.max(1, Math.ceil(filteredPatients.length / pageSize));
+  const paginatedPatients = filteredPatients.slice((page - 1) * pageSize, page * pageSize);
+
+  useEffect(() => {
+    setPage(1);
+  }, [searchTerm, onlyWithAllergies]);
+
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages);
+    }
+  }, [page, totalPages]);
+
+  useEffect(() => {
+    const patientId = searchParams.get('patient');
+    if (!patientId) {
+      return;
+    }
+
+    const patient = PATIENTS.find((item) => item.id === patientId);
+    if (patient) {
+      setSelectedPatient(patient);
+    }
+  }, [searchParams]);
+
   const getPatientHistory = (patientId: string) => {
-    return APPOINTMENTS
+    return appointments
       .filter(apt => apt.patientId === patientId)
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  };
+
+  const handleExport = () => {
+    const rows = [
+      ['Nombre', 'DNI', 'Email', 'Telefono', 'UltimaVisita', 'Alergias'].join(','),
+      ...filteredPatients.map((patient) =>
+        [
+          patient.name,
+          patient.dni,
+          patient.email,
+          patient.phone,
+          patient.lastVisit || '',
+          (patient.allergies || []).join(' | '),
+        ]
+          .map((value) => `"${value.replace(/"/g, '""')}"`)
+          .join(',')
+      ),
+    ];
+
+    const blob = new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'pacientes-nexops.csv';
+    link.click();
+    window.URL.revokeObjectURL(url);
   };
 
   return (
@@ -34,11 +100,16 @@ export const Patients: React.FC = () => {
           />
         </div>
         <div className="flex items-center gap-2">
-          <button className="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors">
+          <button
+            onClick={() => setOnlyWithAllergies((current) => !current)}
+            className={`flex items-center gap-2 px-4 py-2 border rounded-xl text-sm font-medium transition-colors ${
+              onlyWithAllergies ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-gray-200 hover:bg-gray-50'
+            }`}
+          >
             <Filter size={18} className="text-gray-400" />
-            Filtros
+            {onlyWithAllergies ? 'Con alergias' : 'Filtros'}
           </button>
-          <button className="px-4 py-2 bg-gray-900 text-white rounded-xl text-sm font-bold hover:bg-gray-800 transition-colors">
+          <button onClick={handleExport} className="px-4 py-2 bg-gray-900 text-white rounded-xl text-sm font-bold hover:bg-gray-800 transition-colors">
             Exportar
           </button>
         </div>
@@ -56,7 +127,7 @@ export const Patients: React.FC = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
-            {filteredPatients.map((patient) => (
+            {paginatedPatients.map((patient) => (
               <tr 
                 key={patient.id} 
                 className="hover:bg-gray-50/50 transition-colors group cursor-pointer"
@@ -93,7 +164,7 @@ export const Patients: React.FC = () => {
                   </div>
                 </td>
                 <td className="px-6 py-4 text-right">
-                  <button className="p-2 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-all">
+                  <button onClick={(e) => { e.stopPropagation(); setSelectedPatient(patient); }} className="p-2 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-all">
                     <MoreHorizontal size={20} />
                   </button>
                 </td>
@@ -104,8 +175,8 @@ export const Patients: React.FC = () => {
         <div className="p-4 border-t border-gray-50 flex items-center justify-between text-sm text-gray-500">
           <span>Mostrando {filteredPatients.length} de {PATIENTS.length} pacientes</span>
           <div className="flex gap-2">
-            <button className="px-3 py-1 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50" disabled>Anterior</button>
-            <button className="px-3 py-1 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50" disabled>Siguiente</button>
+            <button onClick={() => setPage((current) => Math.max(1, current - 1))} className="px-3 py-1 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50" disabled={page === 1}>Anterior</button>
+            <button onClick={() => setPage((current) => Math.min(totalPages, current + 1))} className="px-3 py-1 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50" disabled={page === totalPages}>Siguiente</button>
           </div>
         </div>
       </div>
@@ -292,7 +363,7 @@ export const Patients: React.FC = () => {
                 >
                   Cerrar
                 </button>
-                <button className="px-6 py-2 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-100">
+                <button onClick={() => window.print()} className="px-6 py-2 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-100">
                   Imprimir Historia
                 </button>
               </div>

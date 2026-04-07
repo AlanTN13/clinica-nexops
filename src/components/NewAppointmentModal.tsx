@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, Calendar, Clock, User, Stethoscope, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { DOCTORS, PATIENTS } from '../constants';
+import { createAppointment } from '../lib/appointmentsStorage';
 
 interface NewAppointmentModalProps {
   isOpen: boolean;
@@ -20,7 +21,13 @@ export const NewAppointmentModal: React.FC<NewAppointmentModalProps> = ({ isOpen
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // In a real app, we would save this to the database
+    createAppointment({
+      patientId: formData.patientId,
+      doctorId: formData.doctorId,
+      date: formData.date,
+      time: formData.time,
+      reason: formData.reason.trim(),
+    });
     setStep(3);
     setTimeout(() => {
       onClose();
